@@ -1,10 +1,7 @@
 import cv2
 
-# Initialize KCF tracker
-tracker = cv2.TrackerCSRT_create()
-
-# Load video file
-video = cv2.VideoCapture("btr_high_quality.mp4")
+# Initialize video capture
+video = cv2.VideoCapture("http://192.168.0.100:8080/stream.mjpeg?clientId=zEjHzVRFPBgDUAGg")
 
 # Get video FPS
 fps = video.get(cv2.CAP_PROP_FPS)
@@ -13,19 +10,38 @@ try:
 except:
     frame_delay = 25
 
-tracking = False
+# List to store multiple trackers and bounding boxes
+saved_bboxes = []
+current_tracker = None
+current_bbox = None
 
 # Function to start tracking a new object
 def start_tracking():
-    global tracker, bbox, tracking
+    global current_tracker, current_bbox, saved_bboxes
     success, frame = video.read()
     if not success:
         return
     bbox = cv2.selectROI("Frame", frame, False)
     if bbox != (0, 0, 0, 0):
+        current_tracker = cv2.TrackerKCF_create()
+        current_tracker.init(frame, bbox)
+        current_bbox = bbox
+        saved_bboxes.append(bbox)
+
+# Function to try to track with saved bboxes
+def try_saved_bboxes():
+    global current_tracker, current_bbox, saved_bboxes
+    success, frame = video.read()
+    if not success:
+        return
+    for bbox in saved_bboxes:
         tracker = cv2.TrackerKCF_create()
         tracker.init(frame, bbox)
-        tracking = True
+        success, _ = tracker.update(frame)
+        if success:
+            current_tracker = tracker
+            current_bbox = bbox
+            break
 
 # Get video frame dimensions
 success, frame = video.read()
@@ -40,12 +56,11 @@ while True:
     if not success:
         break
 
-    if tracking:
-        success, bbox = tracker.update(frame)  # Update the tracker
-        
+    if current_tracker is not None:
+        success, current_bbox = current_tracker.update(frame)
         if success:
             # Draw bounding box on the object
-            (x, y, w, h) = [int(i) for i in bbox]
+            (x, y, w, h) = [int(i) for i in current_bbox]
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             
             # Calculate center of the green rectangle
@@ -63,7 +78,9 @@ while True:
             text = f"Move: x={delta_x}px, y={delta_y}px"
             cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
         else:
-            delta_x = delta_y = 0
+            current_tracker = None
+            current_bbox = None
+            try_saved_bboxes()
 
     # Draw the center point in the middle of the frame
     cv2.circle(frame, (frame_center_x, frame_center_y), 5, (255, 0, 0), -1)  # Draw a small blue circle at the center
