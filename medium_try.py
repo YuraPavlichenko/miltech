@@ -1,7 +1,7 @@
 import cv2
 
 # Initialize video capture
-video = cv2.VideoCapture("http://192.168.0.100:8080/stream.mjpeg?clientId=zEjHzVRFPBgDUAGg")
+video = cv2.VideoCapture("abrams.mp4")
 
 # Get video FPS
 fps = video.get(cv2.CAP_PROP_FPS)
